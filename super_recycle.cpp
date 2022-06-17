@@ -21,33 +21,32 @@ const int lieNum = 8399;
 
 
 
-
-unsigned int Act[23045][722] = { 0 };
-unsigned int Pas[23045][722] = { 0 };
-
-const int Num = 721;
-const int pasNum = 14325;
-const int lieNum = 23045;
-
-
-/*
-unsigned int Act[37960][1188] = { 0 };
-unsigned int Pas[37960][1188] = { 0 };
-
-const int Num = 1187;
-const int pasNum = 14921;
-const int lieNum = 37960;
-*/
+//
+//unsigned int Act[23045][722] = { 0 };
+//unsigned int Pas[23045][722] = { 0 };
+//
+//const int Num = 721;
+//const int pasNum = 14325;
+//const int lieNum = 23045;
 
 
-/*
+//
+//unsigned int Act[37960][1188] = { 0 };
+//unsigned int Pas[37960][1188] = { 0 };
+//
+//const int Num = 1187;
+//const int pasNum = 14921;
+//const int lieNum = 37960;
+
+
+
 unsigned int Act[43577][1363] = { 0 };
 unsigned int Pas[54274][1363] = { 0 };
 
 const int Num = 1362;
 const int pasNum = 54274;
 const int lieNum = 43577;
-*/
+
 
 
 //消元子初始化
@@ -56,7 +55,7 @@ void init_A()
     //每个消元子第一个为1位所在的位置，就是它所在二维数组的行号
     //例如：消元子（561，...）由Act[561][]存放
     unsigned int a;
-    ifstream infile("act1.txt");
+    ifstream infile("act3.txt");
     char fin[10000] = { 0 };
     int index;
     //从文件中提取行
@@ -89,7 +88,7 @@ void init_P()
 {
     //直接按照磁盘文件的顺序存，在磁盘文件是第几行，在数组就是第几行
     unsigned int a;
-    ifstream infile("pas1.txt");
+    ifstream infile("pas3.txt");
     char fin[10000] = { 0 };
     int index = 0;
     //从文件中提取行
@@ -268,7 +267,124 @@ void f_ordinary()
 }
 
 
+void f_ordinary1()
+{
+    timeval t_start;
+    timeval t_end;
+    gettimeofday(&t_start, NULL);
 
+    int i;
+    for (i = lieNum - 1; i - 8 >= -1; i -= 8)
+    {
+        //每轮处理8个消元子，范围：首项在 i-7 到 i
+
+        for (int j = 0; j < pasNum; j++)
+        {
+            //看4535个被消元行有没有首项在此范围内的
+            while (Pas[j][Num] <= i && Pas[j][Num] >= i - 7)
+            {
+                int index = Pas[j][Num];
+                if (Act[index][Num] == 1)//消元子不为空
+                {
+                    //Pas[j][]和Act[（Pas[j][18]）][]做异或
+                    for (int k = 0; k < Num; k++)
+                    {
+                        Pas[j][k] = Pas[j][k] ^ Act[index][k];
+                    }
+
+                    //更新Pas[j][18]存的首项值
+                    //做完异或之后继续找这个数的首项，存到Pas[j][18]，若还在范围里会继续while循环
+                    //找异或之后Pas[j][ ]的首项
+                    int num = 0, S_num = 0;
+                    for (num = 0; num < Num; num++)
+                    {
+                        if (Pas[j][num] != 0)
+                        {
+                            unsigned int temp = Pas[j][num];
+                            while (temp != 0)
+                            {
+                                temp = temp >> 1;
+                                S_num++;
+                            }
+                            S_num += num * 32;
+                            break;
+                        }
+                    }
+                    Pas[j][Num] = S_num - 1;
+
+                }
+                else//消元子为空
+                {
+                    //Pas[j][]来补齐消元子
+                    for (int k = 0; k < Num; k++)
+                        Act[index][k] = Pas[j][k];
+
+                    Act[index][Num] = 1;//设置消元子非空
+                    break;
+                }
+
+            }
+        }
+    }
+
+
+    for (int i = lieNum % 8 - 1; i >= 0; i--)
+    {
+        //每轮处理1个消元子，范围：首项等于i
+
+        for (int j = 0; j < pasNum; j++)
+        {
+            //看53个被消元行有没有首项等于i的
+            while (Pas[j][Num] == i)
+            {
+                if (Act[i][Num] == 1)//消元子不为空
+                {
+                    //Pas[j][]和Act[i][]做异或
+                    for (int k = 0; k < Num; k++)
+                    {
+                        Pas[j][k] = Pas[j][k] ^ Act[i][k];
+                    }
+
+                    //更新Pas[j][18]存的首项值
+                    //做完异或之后继续找这个数的首项，存到Pas[j][18]，若还在范围里会继续while循环
+                    //找异或之后Pas[j][ ]的首项
+                    int num = 0, S_num = 0;
+                    for (num = 0; num < Num; num++)
+                    {
+                        if (Pas[j][num] != 0)
+                        {
+                            unsigned int temp = Pas[j][num];
+                            while (temp != 0)
+                            {
+                                temp = temp >> 1;
+                                S_num++;
+                            }
+                            S_num += num * 32;
+                            break;
+                        }
+                    }
+                    Pas[j][Num] = S_num - 1;
+
+                }
+                else//消元子为空
+                {
+                    //Pas[j][]来补齐消元子
+                    for (int k = 0; k < Num; k++)
+                        Act[i][k] = Pas[j][k];
+
+                    Act[i][Num] = 1;//设置消元子非空
+                    break;
+                }
+            }
+        }
+    }
+
+
+    gettimeofday(&t_end, NULL);
+    cout << "ordinary time cost: "
+        << 1000 * (t_end.tv_sec - t_start.tv_sec) +
+        0.001 * (t_end.tv_usec - t_start.tv_usec) << "ms" << endl;
+}
 
 
 void super(int rank, int num_proc)
@@ -280,10 +396,10 @@ void super(int rank, int num_proc)
     int i;
     
     //每轮处理8个消元子，范围：首项在 i-7 到 i
-#pragma omp parallel num_threads(thread_count) for schedule(dynamic,20)
+#pragma omp parallel num_threads(thread_count) 
     for (i = lieNum - 1; i - 8 >= -1; i -= 8)
     {
-        
+#pragma omp for schedule(dynamic,20)     
         for (int j = 0; j < pasNum; j++)
         {
             //当前行是自己进程的任务——进行消去
@@ -350,11 +466,11 @@ void super(int rank, int num_proc)
         }
     }
 
-#pragma omp parallel num_threads(thread_count) for schedule(dynamic,20)
-    for (i = i + 8; i >= 0; i--)
+#pragma omp parallel num_threads(thread_count) 
+    for (int i = lieNum % 8 - 1; i >= 0; i--)
     {
         //每轮处理1个消元子，范围：首项等于i
-
+#pragma omp for schedule(dynamic,20)
         for (int j = 0; j < pasNum; j++)
         {
             //当前行是自己进程的任务——进行消去
@@ -526,9 +642,7 @@ void f_mpi()
             MPI_Recv(&sign, 1, MPI_INT, 0, 2, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
 
         } while (sign == 1);
-        
     }
-
 }
 
 
@@ -536,7 +650,9 @@ void f_mpi()
 
 int main()
 {
-
+    init_A();
+    init_P();
+    f_ordinary1();
 
     init_A();
     init_P();

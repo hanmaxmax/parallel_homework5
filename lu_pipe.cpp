@@ -65,21 +65,21 @@ void LU(float A[][N], int rank, int num_proc)
     int next_proc = (rank + 1) % num_proc;
     for (int k = 0; k < N; k++)
     {
-        //        判断当前行是否是自己的任务
+        //判断当前行是否是自己的任务
         if (int(k % num_proc) == rank)
         {
             for (int j = k + 1; j < N; j++)
                 A[k][j] = A[k][j] / A[k][k];
             A[k][k] = 1.0;
-            //            处理完自己的任务后向下一进程发送消息
+            //处理完自己的任务后向下一进程发送消息
             MPI_Send(&A[k], N, MPI_FLOAT, next_proc, 2, MPI_COMM_WORLD);
         }
         else
         {
-            //            如果当前行不是当前进程的任务，则接收前一进程的消息
+            //如果当前行不是当前进程的任务，则接收前一进程的消息
             MPI_Recv(&A[k], N, MPI_FLOAT, pre_proc, 2,
                 MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-            //            如果当前行不是下一进程的任务，需将消息进行传递
+            //如果当前行不是下一进程的任务，需将消息进行传递
             if (int(k % num_proc) != next_proc)
                 MPI_Send(&A[k], N, MPI_FLOAT, next_proc, 2, MPI_COMM_WORLD);
         }
@@ -107,7 +107,6 @@ void f_mpi()
     MPI_Comm_size(MPI_COMM_WORLD, &num_proc);
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
-    int seg = num_proc;
     if (rank == 0)
     {
         reset_A(A, arr);
@@ -115,17 +114,17 @@ void f_mpi()
         //        在0号进程进行任务划分
         for (int i = 0; i < N; i++)
         {
-            int flag = i % seg;
+            int flag = i % num_proc;
             if (flag == rank)
                 continue;
             else
                 MPI_Send(&A[i], N, MPI_FLOAT, flag, 0, MPI_COMM_WORLD);
         }
         LU(A, rank, num_proc);
-        //        处理完0号进程自己的任务后需接收其他进程处理之后的结果
+        //处理完0号进程自己的任务后需接收其他进程处理之后的结果
         for (int i = 0; i < N; i++)
         {
-            int flag = i % seg;
+            int flag = i % num_proc;
             if (flag == rank)
                 continue;
             else
@@ -135,18 +134,17 @@ void f_mpi()
         cout << "Pipeline MPI LU time cost: "
             << 1000 * (t_end.tv_sec - t_start.tv_sec) +
             0.001 * (t_end.tv_usec - t_start.tv_usec) << "ms" << endl;
-        //print_A(A);
     }
     else
     {
-        //        非0号进程先接收任务
-        for (int i = rank; i < N; i += seg)
+        //非0号进程先接收任务
+        for (int i = rank; i < N; i += num_proc)
         {
             MPI_Recv(&A[i], N, MPI_FLOAT, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
         }
         LU(A, rank, num_proc);
-        //        处理完后向零号进程返回结果
-        for (int i = rank; i < N; i += seg)
+        //非0号进程完成任务之后，将结果传回到0号进程
+        for (int i = rank; i < N; i += num_proc)
         {
             MPI_Send(&A[i], N, MPI_FLOAT, 0, 1, MPI_COMM_WORLD);
         }
@@ -167,16 +165,15 @@ void LU_opt(float A[][N], int rank, int num_proc)
         {
             float temp1[4] = { A[k][k], A[k][k], A[k][k], A[k][k] };
             t1 = _mm_loadu_ps(temp1);
-            int j = k + 1;
+            
 #pragma omp for schedule(dynamic, 20)
-            for (j; j < N - 3; j += 4)
+            for (int j = k + 1; j < N - 3; j += 4)
             {
                 t2 = _mm_loadu_ps(A[k] + j);
                 t3 = _mm_div_ps(t2, t1);
                 _mm_storeu_ps(A[k] + j, t3);
             }
-#pragma omp for schedule(dynamic, 20)
-            for (j; j < N; j++)
+            for (int j = N - N % 4; j < N; j++)
             {
                 A[k][j] = A[k][j] / A[k][k];
             }
@@ -196,9 +193,8 @@ void LU_opt(float A[][N], int rank, int num_proc)
             {
                 float temp2[4] = { A[i][k], A[i][k], A[i][k], A[i][k] };
                 t1 = _mm_loadu_ps(temp2);
-                int j = k + 1;
 #pragma omp for schedule(dynamic, 20)
-                for (j; j <= N - 3; j += 4)
+                for (int j = k + 1; j <= N - 3; j += 4)
                 {
                     t2 = _mm_loadu_ps(A[i] + j);
                     t3 = _mm_loadu_ps(A[k] + j);
@@ -206,8 +202,7 @@ void LU_opt(float A[][N], int rank, int num_proc)
                     t2 = _mm_sub_ps(t2, t3);
                     _mm_storeu_ps(A[i] + j, t2);
                 }
-#pragma omp for schedule(dynamic, 20)
-                for (j; j < N; j++)
+                for (int j = N - N % 4; j < N; j++)
                     A[i][j] = A[i][j] - A[i][k] * A[k][j];
                 A[i][k] = 0;
             }

@@ -107,26 +107,27 @@ void LU(float A[][N], int rank, int num_proc)
             for (int j = k + 1; j < N; j++)
                 A[k][j] = A[k][j] / A[k][k];
             A[k][k] = 1.0;
-            //发送消息（向本进程后面的进程）
-            for (int p = rank + 1; p < num_proc; p++)
-                MPI_Send(&A[k], N, MPI_FLOAT, p, 2, MPI_COMM_WORLD);
+            ////发送消息（向本进程后面的进程）
+            //for (int p = rank + 1; p < num_proc; p++)
+            //    MPI_Send(&A[k], N, MPI_FLOAT, p, 2, MPI_COMM_WORLD);
             //发送消息（向所有其他进程）
-            /*for (int p = 0; p < num_proc; p++)
+            for (int p = 0; p < num_proc; p++)
                 if (p != rank)
-                    MPI_Send(&A[k], N, MPI_FLOAT, p, 2, MPI_COMM_WORLD);*/
+                    MPI_Send(&A[k], N, MPI_FLOAT, p, 2, MPI_COMM_WORLD);
 
         }
         //当前行不是自己进程的任务——接收消息
         else
         {
-            //接收消息（接收位于自己前面的进程的消息）
-            int cur_p = k / block;
-            if (cur_p < rank)
-                MPI_Recv(&A[k], N, MPI_FLOAT, cur_p, 2, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+            ////接收消息（接收位于自己前面的进程的消息）
+            //int cur_p = k / block;
+            //if (cur_p < rank)
+            //    MPI_Recv(&A[k], N, MPI_FLOAT, cur_p, 2, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
 
             //接收消息（接收所有其他进程的消息）
-            /* MPI_Recv(&A[k], N, MPI_FLOAT, cur_p, 2,
-                 MPI_COMM_WORLD, MPI_STATUS_IGNORE);*/
+            int cur_p = k / block;
+             MPI_Recv(&A[k], N, MPI_FLOAT, cur_p, 2,
+                 MPI_COMM_WORLD, MPI_STATUS_IGNORE);
 
         }
 
@@ -248,16 +249,14 @@ void LU_opt(float A[][N], int rank, int num_proc)
         {
             float temp1[4] = { A[k][k], A[k][k], A[k][k], A[k][k] };
             t1 = _mm_loadu_ps(temp1);
-            int j = k + 1;
-#pragma omp for schedule(dynamic, 20)
-            for (j; j < N - 3; j += 4)
+#pragma omp for schedule(static)
+            for (int j = k + 1; j < N - 3; j += 4)
             {
                 t2 = _mm_loadu_ps(A[k] + j);
                 t3 = _mm_div_ps(t2, t1);
                 _mm_storeu_ps(A[k] + j, t3);
             }
-#pragma omp for schedule(dynamic, 20)
-            for (j; j < N; j++)
+            for (int j = N - N % 4; j < N; j++)
             {
                 A[k][j] = A[k][j] / A[k][k];
             }
@@ -277,9 +276,8 @@ void LU_opt(float A[][N], int rank, int num_proc)
             {
                 float temp2[4] = { A[i][k], A[i][k], A[i][k], A[i][k] };
                 t1 = _mm_loadu_ps(temp2);
-                int j = k + 1;
-#pragma omp for schedule(dynamic, 20)
-                for (j; j <= N - 3; j += 4)
+#pragma omp for schedule(static)
+                for (int j = k + 1; j <= N - 3; j += 4)
                 {
                     t2 = _mm_loadu_ps(A[i] + j);
                     t3 = _mm_loadu_ps(A[k] + j);
@@ -287,8 +285,7 @@ void LU_opt(float A[][N], int rank, int num_proc)
                     t2 = _mm_sub_ps(t2, t3);
                     _mm_storeu_ps(A[i] + j, t2);
                 }
-#pragma omp for schedule(dynamic, 20)
-                for (j; j < N; j++)
+                for (int j = N - N % 4; j < N; j++)
                     A[i][j] = A[i][j] - A[i][k] * A[k][j];
                 A[i][k] = 0;
             }
@@ -391,7 +388,7 @@ int main()
 {
     init_A(arr);
 
-    f_ordinary();
+    //f_ordinary();
 
     MPI_Init(NULL, NULL);
 
